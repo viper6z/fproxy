@@ -15,9 +15,9 @@ func newClient() *http.Client {
 	return client
 }
 
-func main() {
-	proxyHandler := func(w http.ResponseWriter, req *http.Request) {
-		out, err := http.NewRequestWithContext(req.Context(), req.Method, "http://127.0.0.1:9091"+req.URL.RequestURI(), req.Body)
+func newHandler(client *http.Client, target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		out, err := http.NewRequestWithContext(req.Context(), req.Method, target+req.URL.RequestURI(), req.Body)
 		if err != nil {
 			return
 		}
@@ -29,7 +29,7 @@ func main() {
 		}
 		out.ContentLength = req.ContentLength
 
-		resp, err := proxyClient.Do(out)
+		resp, err := client.Do(out)
 		if err != nil {
 			return
 		}
@@ -46,5 +46,8 @@ func main() {
 
 		io.Copy(w, resp.Body)
 	}
-	log.Fatal(http.ListenAndServe(":8080", http.HandlerFunc(proxyHandler)))
+}
+
+func main() {
+	log.Fatal(http.ListenAndServe(":8080", newHandler(proxyClient, "http://127.0.0.1:9091")))
 }

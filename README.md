@@ -1,7 +1,10 @@
 <<<<<<< HEAD
+
 # fproxy
+
 :)
 =======
+
 # Reverse proxy checkpoints
 
 ## 1. Forward to one hardcoded backend
@@ -51,4 +54,5 @@
 ## 8. Lifecycle
 
 - [ ] Graceful shutdown lets in-flight requests finish
+
 >>>>>>> 58d8e54 (Forward requests to a single backend)
