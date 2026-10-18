@@ -1,53 +1,43 @@
 package main
 
 import (
-	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"time"
 )
 
-var proxyClient = newClient()
-
-func newClient() *http.Client {
+func newProxy(target *url.URL) *httputil.ReverseProxy {
 	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.DisableCompression = true
-	client := &http.Client{Transport: t}
-	return client
-}
-
-func newHandler(client *http.Client, target string) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		out, err := http.NewRequestWithContext(req.Context(), req.Method, target+req.URL.RequestURI(), req.Body)
-		if err != nil {
-			return
-		}
-
-		for key, values := range req.Header {
-			for _, v := range values {
-				out.Header.Add(key, v)
-			}
-		}
-		out.ContentLength = req.ContentLength
-
-		resp, err := client.Do(out)
-		if err != nil {
-			return
-		}
-
-		defer resp.Body.Close()
-
-		for key, values := range resp.Header {
-			for _, v := range values {
-				w.Header().Add(key, v)
-			}
-		}
-
-		w.WriteHeader(resp.StatusCode)
-
-		io.Copy(w, resp.Body)
+	t.Proxy = nil
+	t.MaxIdleConns = 200
+	t.MaxConnsPerHost = 100
+	t.ResponseHeaderTimeout = 10 * time.Second
+	// TODO: add tls config
+	return &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(target)
+		},
 	}
 }
 
+const (
+	certfile = "certs/server.crt"
+	keyfile  = "certs/server.key"
+)
+
 func main() {
-	log.Fatal(http.ListenAndServe(":8080", newHandler(proxyClient, "http://127.0.0.1:9091")))
+	backendAddress, err := url.Parse("http://127.0.0.1:9091")
+	if err != nil {
+		log.Fatalf("error parsing listener url: %v", err)
+	}
+	s := &http.Server{
+		Addr:           ":8080",
+		Handler:        newProxy(backendAddress),
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	log.Fatal(s.ListenAndServeTLS(certfile, keyfile))
 }
